@@ -15,8 +15,11 @@ from app.ingestion.pdf_to_text import extract_pdf_to_text_chunks
 
 
 SourceKind = Literal["operational_guidelines", "document_checklist_pdf"]
-DEFAULT_CHECKLIST_PATH = (
+DEFAULT_VISITOR_CHECKLIST_PATH = (
     Path(__file__).resolve().parents[4] / "services/data/forms/imm5484e.pdf"
+)
+DEFAULT_STUDY_PERMIT_CHECKLIST_PATH = (
+    Path(__file__).resolve().parents[4] / "services/data/forms/IMM5483.pdf"
 )
 
 
@@ -123,26 +126,18 @@ class CrawledDocument:
         }
 
 
-class VisitorProgramCrawler:
-    """LangChain-based crawler for the visitor-program seed sources.
-
-    The crawler intentionally stays narrow in scope for this stage:
-    - two operational guideline pages
-    - one document checklist PDF
-
-    Web pages are fetched with LangChain's `WebBaseLoader`, then parsed into a
-    heading-aware structure. The checklist PDF is loaded with LangChain's
-    `PyPDFLoader` and preserved as page-level sections.
+def build_visitor_program_sources() -> list[CrawlerSource]:
+    """Build the source list for the visitor program.
 
     Args:
-        sources: Optional custom source list. Defaults to the three visitor
-            program sources requested for this stage.
+        None.
 
     Returns:
-        VisitorProgramCrawler: Configured crawler for the visitor-program set.
+        list[CrawlerSource]: Visitor-program sources including operational
+        guidelines and the checklist PDF.
     """
 
-    DEFAULT_SOURCES = [
+    return [
         CrawlerSource(
             url=(
                 "https://www.canada.ca/en/immigration-refugees-citizenship/"
@@ -165,9 +160,56 @@ class VisitorProgramCrawler:
             kind="document_checklist_pdf",
             title="Visitor document checklist PDF",
             url="",
-            file_path=str(DEFAULT_CHECKLIST_PATH),
+            file_path=str(DEFAULT_VISITOR_CHECKLIST_PATH),
         ),
     ]
+
+
+def build_study_permit_sources() -> list[CrawlerSource]:
+    """Build the source list for the study-permit program.
+
+    The current study-permit indexing scope includes only the local checklist
+    PDF. No operational-guidelines pages are configured for this program at
+    this stage.
+
+    Args:
+        None.
+
+    Returns:
+        list[CrawlerSource]: Study-permit sources containing only the checklist
+        PDF.
+    """
+
+    return [
+        CrawlerSource(
+            kind="document_checklist_pdf",
+            title="Study permit document checklist PDF",
+            url="",
+            file_path=str(DEFAULT_STUDY_PERMIT_CHECKLIST_PATH),
+        )
+    ]
+
+
+class VisitorProgramCrawler:
+    """LangChain-based crawler for a configured program source set.
+
+    The crawler intentionally stays narrow in scope for this stage:
+    - visitor program sources by default
+    - custom program sources when passed explicitly
+
+    Web pages are fetched with LangChain's `WebBaseLoader`, then parsed into a
+    heading-aware structure. The checklist PDF is loaded with LangChain's
+    `PyPDFLoader` and preserved as page-level sections.
+
+    Args:
+        sources: Optional custom source list. Defaults to the three visitor
+            program sources requested for this stage.
+
+    Returns:
+        VisitorProgramCrawler: Configured crawler for the visitor-program set.
+    """
+
+    DEFAULT_SOURCES = build_visitor_program_sources()
 
     def __init__(self, sources: list[CrawlerSource] | None = None) -> None:
         """Initialize the crawler with a source list.
