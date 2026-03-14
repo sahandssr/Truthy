@@ -1,5 +1,12 @@
-from fastapi import FastAPI
+from __future__ import annotations
+
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+
+class ProcessResponse(BaseModel):
+    report: str
 
 
 app = FastAPI(title="Truthy API")
@@ -13,38 +20,11 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-def read_root() -> dict[str, str]:
-    return {
-        "service": "Truthy API",
-        "status": "running",
-    }
-
-
-@app.get("/health")
-def read_health() -> dict[str, str]:
-    return {
-        "status": "ok",
-    }
-
-
-@app.post("/review")
-def create_review() -> dict[str, str]:
-    return {
-        "message": "Review endpoint connected",
-    }
-
-
-@app.get("/review/{review_id}")
-def get_review(review_id: str) -> dict[str, str]:
-    return {
-        "review_id": review_id,
-        "status": "pending",
-    }
-
-
-@app.post("/policy/refresh")
-def refresh_policy() -> dict[str, str]:
-    return {
-        "message": "Policy refresh triggered",
-    }
+@app.post("/process", response_model=ProcessResponse)
+async def process_application(
+    application_name: str = Form(...),
+    files: list[UploadFile] = File(...),
+) -> ProcessResponse:
+    _ = application_name
+    _ = files
+    return ProcessResponse(report="Process endpoint connected")

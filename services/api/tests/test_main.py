@@ -6,48 +6,37 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_root_endpoint() -> None:
-    response = client.get("/")
+def test_process_endpoint_accepts_pdf_uploads() -> None:
+    response = client.post(
+        "/process",
+        data={"application_name": "visitor_visa_application"},
+        files=[
+            ("files", ("form-1.pdf", b"%PDF-1.4 fake pdf content", "application/pdf")),
+            ("files", ("form-2.pdf", b"%PDF-1.4 another fake pdf", "application/pdf")),
+        ],
+    )
 
     assert response.status_code == 200
     assert response.json() == {
-        "service": "Truthy API",
-        "status": "running",
+        "report": "Process endpoint connected",
     }
 
 
-def test_health_endpoint() -> None:
-    response = client.get("/health")
+def test_process_endpoint_requires_application_name() -> None:
+    response = client.post(
+        "/process",
+        files=[
+            ("files", ("form-1.pdf", b"%PDF-1.4 fake pdf content", "application/pdf")),
+        ],
+    )
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "ok",
-    }
-
-
-def test_review_submission_endpoint() -> None:
-    response = client.post("/review")
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "message": "Review endpoint connected",
-    }
+    assert response.status_code == 422
 
 
-def test_review_lookup_endpoint() -> None:
-    response = client.get("/review/review-123")
+def test_process_endpoint_requires_files() -> None:
+    response = client.post(
+        "/process",
+        data={"application_name": "visitor_visa_application"},
+    )
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "review_id": "review-123",
-        "status": "pending",
-    }
-
-
-def test_policy_refresh_endpoint() -> None:
-    response = client.post("/policy/refresh")
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "message": "Policy refresh triggered",
-    }
+    assert response.status_code == 422
