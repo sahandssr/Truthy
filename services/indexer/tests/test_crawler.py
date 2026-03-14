@@ -8,6 +8,8 @@ from app.ingestion.crawler import (
     CrawlerSource,
     HierarchicalSection,
     VisitorProgramCrawler,
+    build_study_permit_sources,
+    build_visitor_program_sources,
 )
 
 
@@ -101,6 +103,31 @@ def test_crawl_source_uses_expected_source_types() -> None:
     assert len(crawler.sources) == 3
     assert crawler.sources[0].kind == "operational_guidelines"
     assert crawler.sources[2].kind == "document_checklist_pdf"
+
+
+def test_program_source_builders_match_visitor_and_study_permit_scope() -> None:
+    """Verify the source builders reflect each program's configured scope.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+    """
+
+    visitor_sources = build_visitor_program_sources()
+    study_permit_sources = build_study_permit_sources()
+
+    print("\n=== VISITOR SOURCES ===")
+    print(visitor_sources)
+    print("\n=== STUDY PERMIT SOURCES ===")
+    print(study_permit_sources)
+
+    assert len(visitor_sources) == 3
+    assert sum(source.kind == "operational_guidelines" for source in visitor_sources) == 2
+    assert len(study_permit_sources) == 1
+    assert study_permit_sources[0].kind == "document_checklist_pdf"
+    assert study_permit_sources[0].file_path.endswith("IMM5483.pdf")
 
 
 def test_render_sections_to_text_prints_hierarchical_output() -> None:

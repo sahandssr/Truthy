@@ -58,6 +58,15 @@ The indexer now includes a Redis-backed IRCC freshness cache.
 
 This reduces unnecessary embedding calls and makes policy-refresh runs cheaper when IRCC pages are unchanged.
 
+The current program coverage includes:
+
+- `visitor`
+  - 2 operational-guidelines pages
+  - 1 local checklist PDF
+- `study permit`
+  - 1 local checklist PDF at [IMM5483.pdf](/Users/abtinzandi/Desktop/Truthy/services/data/forms/IMM5483.pdf)
+  - no operational-guidelines pages configured at this stage
+
 ## Local Run Instructions
 
 1. Copy environment variables:

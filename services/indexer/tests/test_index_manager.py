@@ -4,6 +4,8 @@ from app.cache.policy_freshness_cache import PolicyFreshnessResult
 from app.chunking.text_chunker import ChunkingConfig, TextChunker
 from app.core.config import IndexerSettings
 from app.ingestion.crawler import CrawledDocument, CrawlerSource, HierarchicalSection
+from app.ingestion.crawler import VisitorProgramCrawler
+from app.ingestion.crawler import build_study_permit_sources
 from app.ingestion.pdf_to_text import ExtractedPdf, TextChunk
 from app.vectorstore.index_manager import VisitorProgramIndexer
 from app.vectorstore.pinecone_client import PineconeVectorRecord
@@ -367,6 +369,71 @@ def test_index_manager_skips_unchanged_operational_guidelines(monkeypatch) -> No
     assert len(fake_pinecone.guideline_records) == 0
     assert len(fake_pinecone.checklist_records) == 1
     assert fake_policy_cache.stored_dates == []
+
+
+def test_study_permit_indexer_uses_only_checklist_pdf(monkeypatch) -> None:
+    """Verify the study-permit configuration indexes only the checklist PDF.
+
+    Args:
+        monkeypatch: Pytest monkeypatch fixture.
+
+    Returns:
+        None.
+    """
+
+    fake_pinecone = FakePineconeClient()
+    fake_policy_cache = FakePolicyCache()
+    settings = _build_settings()
+
+    monkeypatch.setattr(
+        "app.vectorstore.index_manager.embed_texts",
+        lambda texts: [[float(index + 1), float(len(text))] for index, text in enumerate(texts)],
+    )
+    monkeypatch.setattr(
+        "app.vectorstore.index_manager.extract_pdf_to_text_chunks",
+        lambda pdf_bytes, **kwargs: ExtractedPdf(
+            full_text="Study permit checklist content.",
+            chunks=[
+                TextChunk(
+                    chunk_id="p1-page_text-1",
+                    page_number=1,
+                    source_type="page_text",
+                    text="Study permit checklist content.",
+                    char_count=31,
+                    metadata={"page_number": 1, "method": "pymupdf_text"},
+                )
+            ],
+            pages=[
+                {
+                    "page_number": 1,
+                    "text": "Study permit checklist content.",
+                    "entries": [],
+                }
+            ],
+        ),
+    )
+
+    indexer = VisitorProgramIndexer(
+        settings,
+        crawler=VisitorProgramCrawler(sources=build_study_permit_sources()),
+        pinecone_client=fake_pinecone,
+        chunker=TextChunker(ChunkingConfig(chunk_size=80, chunk_overlap=10)),
+        policy_cache=fake_policy_cache,
+    )
+
+    summary = indexer.index_all_sources()
+
+    print("\n=== STUDY PERMIT SUMMARY ===")
+    print(summary.to_dict())
+
+    assert summary.crawled_documents == 1
+    assert summary.operational_guidelines_upserts == 0
+    assert summary.document_checklist_upserts == 1
+    assert len(fake_pinecone.guideline_records) == 0
+    assert len(fake_pinecone.checklist_records) == 1
+    assert fake_pinecone.checklist_records[0].metadata["document_title"] == (
+        "Study permit document checklist PDF"
+    )
 
 
 def _build_settings() -> IndexerSettings:
