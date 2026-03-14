@@ -371,8 +371,10 @@ def test_index_manager_skips_unchanged_operational_guidelines(monkeypatch) -> No
     assert fake_policy_cache.stored_dates == []
 
 
-def test_study_permit_indexer_uses_only_checklist_pdf(monkeypatch) -> None:
-    """Verify the study-permit configuration indexes only the checklist PDF.
+def test_study_permit_indexer_uses_operational_guidelines_and_checklist_pdf(
+    monkeypatch,
+) -> None:
+    """Verify the study-permit configuration indexes both configured sources.
 
     Args:
         monkeypatch: Pytest monkeypatch fixture.
@@ -426,11 +428,12 @@ def test_study_permit_indexer_uses_only_checklist_pdf(monkeypatch) -> None:
     print("\n=== STUDY PERMIT SUMMARY ===")
     print(summary.to_dict())
 
-    assert summary.crawled_documents == 1
-    assert summary.operational_guidelines_upserts == 0
+    assert summary.crawled_documents == 2
+    assert summary.operational_guidelines_upserts > 0
     assert summary.document_checklist_upserts == 1
-    assert len(fake_pinecone.guideline_records) == 0
+    assert len(fake_pinecone.guideline_records) > 0
     assert len(fake_pinecone.checklist_records) == 1
+    assert fake_policy_cache.stored_dates
     assert fake_pinecone.checklist_records[0].metadata["document_title"] == (
         "Study permit document checklist PDF"
     )
