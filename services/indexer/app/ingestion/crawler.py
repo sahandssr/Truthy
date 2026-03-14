@@ -10,8 +10,13 @@ import requests
 from bs4 import BeautifulSoup, Tag
 from langchain_community.document_loaders import PyPDFLoader, WebBaseLoader
 
+from app.ingestion.pdf_to_text import extract_pdf_to_text_chunks
+
 
 SourceKind = Literal["operational_guidelines", "document_checklist_pdf"]
+DEFAULT_CHECKLIST_PATH = (
+    Path(__file__).resolve().parents[4] / "services/data/forms/imm5484e.pdf"
+)
 
 
 @dataclass(frozen=True)
@@ -19,17 +24,30 @@ class CrawlerSource:
     """Source definition for a visitor-program crawl target.
 
     Args:
-        url: Remote URL to crawl.
         kind: Logical source type used by downstream indexing code.
         title: Human-readable label for the source.
+        url: Remote URL to crawl.
+        file_path: Optional local file path for file-based indexing flows.
 
     Returns:
         CrawlerSource: Immutable crawl target definition.
     """
 
-    url: str
     kind: SourceKind
     title: str
+    url: str
+    file_path: str | None = None
+
+    def source_reference(self) -> str:
+        """Return the best available source identifier for metadata and logs.
+
+        Args:
+            None.
+
+        Returns:
+            str: Local file path when configured, otherwise the remote URL.
+        """
+        return self.file_path or self.url
 
 
 @dataclass(frozen=True)
@@ -139,12 +157,10 @@ class VisitorProgramCrawler:
             title="Visitor application intake assessment",
         ),
         CrawlerSource(
-            url=(
-                "https://www.canada.ca/content/dam/ircc/documents/pdf/english/"
-                "kits/forms/imm5484/08-07-2024/imm5484e.pdf"
-            ),
             kind="document_checklist_pdf",
             title="Visitor document checklist PDF",
+            url="",
+            file_path=str(DEFAULT_CHECKLIST_PATH),
         ),
     ]
 
@@ -228,6 +244,11 @@ class VisitorProgramCrawler:
             documents = pdf_loader.load()
 
         sections = self._extract_pdf_sections(documents, source.title)
+        if self._should_use_pdf_fallback(sections):
+            sections = self._extract_pdf_sections_from_fallback_bytes(
+                response.content,
+                source.title,
+            )
         full_text = self._render_sections_to_text(sections)
 
         return CrawledDocument(
@@ -410,6 +431,57 @@ class VisitorProgramCrawler:
                 )
             )
 
+        return sections
+
+    def _should_use_pdf_fallback(self, sections: list[HierarchicalSection]) -> bool:
+        """Determine whether the PDF loader output is just an XFA placeholder.
+
+        Args:
+            sections: Sections extracted by LangChain's PDF loader.
+
+        Returns:
+            bool: Whether the fallback PDF extractor should be used instead.
+        """
+        if not sections:
+            return True
+
+        combined_text = " ".join(section.content for section in sections).lower()
+        return "requires adobe reader" in combined_text
+
+    def _extract_pdf_sections_from_fallback_bytes(
+        self,
+        pdf_bytes: bytes,
+        document_title: str,
+    ) -> list[HierarchicalSection]:
+        """Extract page sections from raw PDF bytes using the local PDF parser.
+
+        Args:
+            pdf_bytes: Raw PDF content.
+            document_title: Top-level title for the PDF.
+
+        Returns:
+            list[HierarchicalSection]: Page-level sections built from the local
+            PDF extraction pipeline.
+        """
+        extracted_pdf = extract_pdf_to_text_chunks(
+            pdf_bytes,
+            chunk_size=2000,
+            chunk_overlap=200,
+            ocr_images=True,
+        )
+
+        sections: list[HierarchicalSection] = []
+        for page in extracted_pdf.pages:
+            page_number = page["page_number"]
+            page_title = f"Page {page_number}"
+            sections.append(
+                HierarchicalSection(
+                    title=page_title,
+                    level=2,
+                    path=[document_title, page_title],
+                    content=page["text"],
+                )
+            )
         return sections
 
     def _render_sections_to_text(self, sections: list[HierarchicalSection]) -> str:
