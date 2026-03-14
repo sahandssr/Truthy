@@ -246,6 +246,7 @@ class VisitorProgramIndexer:
                         "document_title": source.title,
                         "page_number": chunk.page_number,
                         "source_type": chunk.source_type,
+                        "text": chunk.text,
                         "char_count": chunk.char_count,
                         **chunk.metadata,
                     },
@@ -376,6 +377,7 @@ class VisitorProgramIndexer:
                 "text": text_chunk.text,
                 "metadata": {
                     **text_chunk.metadata,
+                    "text": text_chunk.text,
                     "char_count": text_chunk.char_count,
                 },
             }
