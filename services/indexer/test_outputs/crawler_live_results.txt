@@ -1,7 +1,7 @@
 
 
 DOCUMENT 1
-Source URL: https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/operational-bulletins-manuals/temporary-residents/visitors/document-requirements.html
+Source Reference: https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/operational-bulletins-manuals/temporary-residents/visitors/document-requirements.html
 Source Kind: operational_guidelines
 Document Title: Temporary residents: Document requirements
 Section Count: 6
@@ -89,7 +89,7 @@ Temporary residents in Canada who submit an application to extend their stay mus
 ================================================================================
 
 DOCUMENT 2
-Source URL: https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/operational-bulletins-manuals/temporary-residents/visitors/application-intake-assessment.html
+Source Reference: https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/operational-bulletins-manuals/temporary-residents/visitors/application-intake-assessment.html
 Source Kind: operational_guidelines
 Document Title: Temporary resident: Application intake assessment
 Section Count: 2
@@ -123,7 +123,7 @@ See also: Eligibility and admissibility considerations
 ================================================================================
 
 DOCUMENT 3
-Source URL: https://www.canada.ca/content/dam/ircc/documents/pdf/english/kits/forms/imm5484/08-07-2024/imm5484e.pdf
+Source Reference: /workspace/services/data/forms/imm5484e.pdf
 Source Kind: document_checklist_pdf
 Document Title: Visitor document checklist PDF
 Section Count: 1

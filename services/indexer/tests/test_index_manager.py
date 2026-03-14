@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from app.chunking.text_chunker import ChunkingConfig, TextChunker
 from app.core.config import IndexerSettings
 from app.ingestion.crawler import CrawledDocument, CrawlerSource, HierarchicalSection
+from app.ingestion.pdf_to_text import ExtractedPdf, TextChunk
 from app.vectorstore.index_manager import VisitorProgramIndexer
 from app.vectorstore.pinecone_client import PineconeVectorRecord
 
@@ -19,6 +18,29 @@ class FakeCrawler:
         FakeCrawler: Test double for the crawler dependency.
     """
 
+    def __init__(self) -> None:
+        """Initialize the fake crawler with guideline and checklist sources.
+
+        Args:
+            None.
+
+        Returns:
+            None.
+        """
+        self.sources = [
+            CrawlerSource(
+                kind="operational_guidelines",
+                title="Guidelines",
+                url="https://example.com/guidelines",
+            ),
+            CrawlerSource(
+                kind="document_checklist_pdf",
+                title="Checklist PDF",
+                url="",
+                file_path="/workspace/services/data/forms/imm5484e.pdf",
+            ),
+        ]
+
     def crawl_all(self) -> list[CrawledDocument]:
         """Return deterministic structured documents for indexing tests.
 
@@ -31,9 +53,9 @@ class FakeCrawler:
         return [
             CrawledDocument(
                 source=CrawlerSource(
-                    url="https://example.com/guidelines",
                     kind="operational_guidelines",
                     title="Guidelines",
+                    url="https://example.com/guidelines",
                 ),
                 document_title="Guidelines",
                 sections=[
@@ -46,24 +68,18 @@ class FakeCrawler:
                 ],
                 full_text="Guidelines full text",
             ),
-            CrawledDocument(
-                source=CrawlerSource(
-                    url="https://example.com/checklist.pdf",
-                    kind="document_checklist_pdf",
-                    title="Checklist PDF",
-                ),
-                document_title="Checklist PDF",
-                sections=[
-                    HierarchicalSection(
-                        title="Page 1",
-                        level=2,
-                        path=["Checklist PDF", "Page 1"],
-                        content="Passport copy and fee receipt.",
-                    )
-                ],
-                full_text="Checklist full text",
-            ),
         ]
+
+    def crawl_source(self, source: CrawlerSource) -> CrawledDocument:
+        """Return the deterministic guideline document for direct source calls.
+
+        Args:
+            source: Source requested by the index manager.
+
+        Returns:
+            CrawledDocument: Fixed guideline document for the requested source.
+        """
+        return self.crawl_all()[0]
 
 
 class FakePineconeClient:
@@ -151,6 +167,29 @@ def test_index_manager_builds_and_routes_records(monkeypatch) -> None:
         "app.vectorstore.index_manager.embed_texts",
         lambda texts: [[float(index + 1), float(len(text))] for index, text in enumerate(texts)],
     )
+    monkeypatch.setattr(
+        "app.vectorstore.index_manager.extract_pdf_to_text_chunks",
+        lambda pdf_bytes, **kwargs: ExtractedPdf(
+            full_text="Passport copy and fee receipt.",
+            chunks=[
+                TextChunk(
+                    chunk_id="p1-page_text-1",
+                    page_number=1,
+                    source_type="page_text",
+                    text="Passport copy and fee receipt.",
+                    char_count=30,
+                    metadata={"page_number": 1, "method": "pymupdf_text"},
+                )
+            ],
+            pages=[
+                {
+                    "page_number": 1,
+                    "text": "Passport copy and fee receipt.",
+                    "entries": [],
+                }
+            ],
+        ),
+    )
 
     indexer = VisitorProgramIndexer(
         settings,
@@ -173,6 +212,10 @@ def test_index_manager_builds_and_routes_records(monkeypatch) -> None:
     assert summary.generated_chunks >= 2
     assert len(fake_pinecone.guideline_records) >= 1
     assert len(fake_pinecone.checklist_records) >= 1
+    assert (
+        fake_pinecone.checklist_records[0].metadata["source_reference"]
+        == "/workspace/services/data/forms/imm5484e.pdf"
+    )
 
 
 def _build_settings() -> IndexerSettings:

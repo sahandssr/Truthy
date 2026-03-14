@@ -14,6 +14,9 @@ from app.ingestion.pdf_to_text import extract_pdf_to_text_chunks
 
 
 SourceKind = Literal["operational_guidelines", "document_checklist_pdf"]
+DEFAULT_CHECKLIST_PATH = (
+    Path(__file__).resolve().parents[4] / "services/data/forms/imm5484e.pdf"
+)
 
 
 @dataclass(frozen=True)
@@ -21,17 +24,30 @@ class CrawlerSource:
     """Source definition for a visitor-program crawl target.
 
     Args:
-        url: Remote URL to crawl.
         kind: Logical source type used by downstream indexing code.
         title: Human-readable label for the source.
+        url: Remote URL to crawl.
+        file_path: Optional local file path for file-based indexing flows.
 
     Returns:
         CrawlerSource: Immutable crawl target definition.
     """
 
-    url: str
     kind: SourceKind
     title: str
+    url: str
+    file_path: str | None = None
+
+    def source_reference(self) -> str:
+        """Return the best available source identifier for metadata and logs.
+
+        Args:
+            None.
+
+        Returns:
+            str: Local file path when configured, otherwise the remote URL.
+        """
+        return self.file_path or self.url
 
 
 @dataclass(frozen=True)
@@ -141,12 +157,10 @@ class VisitorProgramCrawler:
             title="Visitor application intake assessment",
         ),
         CrawlerSource(
-            url=(
-                "https://www.canada.ca/content/dam/ircc/documents/pdf/english/"
-                "kits/forms/imm5484/08-07-2024/imm5484e.pdf"
-            ),
             kind="document_checklist_pdf",
             title="Visitor document checklist PDF",
+            url="",
+            file_path=str(DEFAULT_CHECKLIST_PATH),
         ),
     ]
 
