@@ -357,6 +357,17 @@ input {
   line-height: 1.55;
 }
 
+.stage-evidence-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+.stage-evidence-list li + li {
+  margin-top: 8px;
+}
+
 .stage-pill {
   display: inline-flex;
   padding: 6px 10px;

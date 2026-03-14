@@ -39,6 +39,13 @@ export default function ResultPanel({ isLoading, reviewResult }) {
                 <span className={`stage-pill stage-pill-${stage.status}`}>{stage.status}</span>
                 <h3>{stage.stage_name}</h3>
                 <p>{stage.explanation}</p>
+                {stage.evidence?.length ? (
+                  <ul className="stage-evidence-list">
+                    {stage.evidence.map((evidenceLine) => (
+                      <li key={`${stage.stage_name}-${evidenceLine}`}>{evidenceLine}</li>
+                    ))}
+                  </ul>
+                ) : null}
               </article>
             ))}
           </div>
