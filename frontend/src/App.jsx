@@ -169,11 +169,16 @@ export default function App() {
             review endpoint from a single officer-facing screen.
           </p>
         </div>
-        <div className="palette-strip" aria-hidden="true">
-          <span className="swatch swatch-deep" />
-          <span className="swatch swatch-crimson" />
-          <span className="swatch swatch-amber" />
-          <span className="swatch swatch-cream" />
+        <div className="hero-wordmark-card" aria-label="Immigration, Refugees and Citizenship Canada wordmark">
+          <div className="hero-flagmark" aria-hidden="true">
+            <span className="flag-bar" />
+            <span className="flag-leaf">✦</span>
+            <span className="flag-bar" />
+          </div>
+          <div className="hero-wordmark-text">
+            <span>Immigration, Refugees</span>
+            <span>and Citizenship Canada</span>
+          </div>
         </div>
       </section>
 

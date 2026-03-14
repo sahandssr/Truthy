@@ -73,25 +73,51 @@ input {
   color: rgba(255, 245, 232, 0.88);
 }
 
-.palette-strip {
+.hero-wordmark-card {
   display: grid;
-  grid-template-columns: repeat(4, minmax(48px, 1fr));
-  align-items: end;
-  gap: 16px;
-}
-
-.swatch {
-  height: 112px;
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
-  transform: translateY(24px);
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 24px;
+  border-radius: 24px;
+  background: rgba(255, 252, 246, 0.96);
+  color: #222;
+  box-shadow: inset 0 0 0 1px rgba(94, 0, 6, 0.08);
   animation: floatIn 900ms ease forwards;
 }
 
-.swatch-deep { background: var(--deep-red); }
-.swatch-crimson { background: var(--crimson); animation-delay: 80ms; }
-.swatch-amber { background: var(--amber); animation-delay: 160ms; }
-.swatch-cream { background: var(--cream); animation-delay: 240ms; }
+.hero-flagmark {
+  display: grid;
+  grid-template-columns: 30px 38px 30px;
+  align-items: center;
+  gap: 10px;
+}
+
+.flag-bar {
+  display: block;
+  width: 30px;
+  height: 44px;
+  background: #ff5757;
+}
+
+.flag-leaf {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: #ff5757;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.hero-wordmark-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: clamp(1.4rem, 2.2vw, 2.2rem);
+  line-height: 1.05;
+  font-weight: 500;
+}
 
 .workspace-grid {
   display: grid;
@@ -590,6 +616,11 @@ select.text-input {
   .hero-panel {
     grid-template-columns: 1fr;
     padding: 24px;
+  }
+
+  .hero-wordmark-card {
+    grid-template-columns: 1fr;
+    justify-items: start;
   }
 
   .stage-grid {
