@@ -8,9 +8,14 @@ import fitz
 from fastapi import APIRouter
 from pydantic import BaseModel
 from pydantic import Field
+from app.prompts.templates import load_prompt_bundle
+from app.prompts.templates import render_content_sufficiency_prompt
+from app.prompts.templates import render_document_presence_prompt
+from app.prompts.templates import render_form_completion_prompt
 
 
 router = APIRouter()
+PROMPT_BUNDLE = load_prompt_bundle()
 
 
 RULE_DEFINITIONS = [
@@ -436,10 +441,14 @@ def _evaluate_completeness_rules(
     }
 
 
-def _build_stage_outcomes(normalized_file_texts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _build_stage_outcomes(
+    application_name: str,
+    normalized_file_texts: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Create the three conditional review outcomes for the strict report.
 
     Args:
+        application_name: Program name under review.
         normalized_file_texts: Normalized file texts prepared from the request.
 
     Returns:
@@ -448,6 +457,23 @@ def _build_stage_outcomes(normalized_file_texts: list[dict[str, Any]]) -> list[d
 
     has_any_text = any(item.get("text", "").strip() for item in normalized_file_texts)
     evaluation = _evaluate_completeness_rules(normalized_file_texts)
+    uploaded_file_names = [item.get("file_name", "unnamed-file") for item in normalized_file_texts]
+    form_evidence_lines = _format_findings_for_evidence(
+        [finding for finding in evaluation["findings"] if finding["stage"] == "form"]
+    ) or [item.get("text", "")[:160] for item in normalized_file_texts if item.get("text")][:3]
+    content_evidence_lines = _format_findings_for_evidence(
+        [
+            finding
+            for finding in evaluation["findings"]
+            if finding["stage"] in {"content", "document"}
+        ]
+    )
+    retrieved_context_lines = [
+        "All the questions on the application form are answered.",
+        "Proof of payment has been submitted.",
+        "All required forms are signed.",
+        "All documents have been submitted.",
+    ]
 
     document_presence_status = (
         "passed"
@@ -523,32 +549,36 @@ def _build_stage_outcomes(normalized_file_texts: list[dict[str, Any]]) -> list[d
             "evidence": (
                 evaluation["missing_categories"]
                 if evaluation["missing_categories"]
-                else [item.get("file_name", "unnamed-file") for item in normalized_file_texts]
+                else uploaded_file_names
             ),
-            "rendered_prompt": "Check whether the user has provided all application files.",
+            "rendered_prompt": render_document_presence_prompt(
+                prompt_bundle=PROMPT_BUNDLE,
+                application_name=application_name,
+                uploaded_files=uploaded_file_names,
+            ),
         },
         {
             "stage_name": "Form Completion",
             "status": form_completion_status,
             "explanation": form_completion_explanation,
-            "evidence": _format_findings_for_evidence(
-                [finding for finding in evaluation["findings"] if finding["stage"] == "form"]
-            )
-            or [item.get("text", "")[:160] for item in normalized_file_texts if item.get("text")][:3],
-            "rendered_prompt": "Check whether the submitted forms appear complete and readable.",
+            "evidence": form_evidence_lines,
+            "rendered_prompt": render_form_completion_prompt(
+                prompt_bundle=PROMPT_BUNDLE,
+                application_name=application_name,
+                form_evidence=form_evidence_lines,
+            ),
         },
         {
             "stage_name": "Content Sufficiency",
             "status": content_status,
             "explanation": content_explanation,
-            "evidence": _format_findings_for_evidence(
-                [
-                    finding
-                    for finding in evaluation["findings"]
-                    if finding["stage"] in {"content", "document"}
-                ]
+            "evidence": content_evidence_lines,
+            "rendered_prompt": render_content_sufficiency_prompt(
+                prompt_bundle=PROMPT_BUNDLE,
+                application_name=application_name,
+                retrieved_context=retrieved_context_lines,
+                extracted_evidence=content_evidence_lines,
             ),
-            "rendered_prompt": "Check whether the submitted content is consistent with the governing completeness guidance.",
         },
     ]
 
@@ -575,7 +605,7 @@ def create_review(payload: ReviewRequest) -> dict[str, Any]:
             }
         )
 
-    stage_outcomes = _build_stage_outcomes(normalized_file_texts)
+    stage_outcomes = _build_stage_outcomes(payload.application_name, normalized_file_texts)
     retrieved_contexts = [
         {
             "index_name": "operational-guidelines-instructions",
