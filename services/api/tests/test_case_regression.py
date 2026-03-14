@@ -89,10 +89,9 @@ def _iter_cases() -> list[tuple[str, Path, bool]]:
 def _case_passed(response_json: dict) -> bool:
     """Determine whether the current system treated a case as passed.
 
-    The current regression definition treats a case as passed when the first
-    two review stages are both explicitly marked as `passed`. This is a strict
-    enough threshold to distinguish successful application intake from manual
-    review or failure statuses.
+    The regression definition treats a case as passed only when every review
+    stage is explicitly marked as `passed`. A package should not be considered
+    complete if any downstream stage still flags a failure.
 
     Args:
         response_json: Structured JSON response returned by the review API.
@@ -102,12 +101,9 @@ def _case_passed(response_json: dict) -> bool:
     """
 
     stage_outcomes = response_json.get("stage_outcomes", [])
-    if len(stage_outcomes) < 2:
+    if not stage_outcomes:
         return False
-    return (
-        stage_outcomes[0].get("status") == "passed"
-        and stage_outcomes[1].get("status") == "passed"
-    )
+    return all(stage.get("status") == "passed" for stage in stage_outcomes)
 
 
 def test_case_regression_suite() -> None:
