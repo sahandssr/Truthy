@@ -12,6 +12,25 @@ from PIL import Image, ImageOps
 
 @dataclass(frozen=True)
 class TextChunk:
+    """Structured text segment extracted from a PDF.
+
+    This object represents one chunk of text that is ready for downstream
+    indexing, retrieval, or reasoning workflows. Chunks retain source context
+    so later services can trace findings back to the originating page and
+    extraction method.
+
+    Args:
+        chunk_id: Stable identifier for the chunk within one extraction run.
+        page_number: One-based page number from the source PDF.
+        source_type: Extraction origin such as native page text or image OCR.
+        text: Final chunk text after normalization and chunking.
+        char_count: Character count for the chunk text.
+        metadata: Additional structured context about extraction provenance.
+
+    Returns:
+        TextChunk: Immutable chunk record for downstream processing.
+    """
+
     chunk_id: str
     page_number: int
     source_type: str
@@ -20,16 +39,48 @@ class TextChunk:
     metadata: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the chunk to a plain dictionary.
+
+        Args:
+            None.
+
+        Returns:
+            dict[str, Any]: Serializable dictionary representation of the chunk.
+        """
         return asdict(self)
 
 
 @dataclass(frozen=True)
 class ExtractedPdf:
+    """Structured result of a PDF extraction pass.
+
+    This object contains the full normalized text, chunked text payloads, and
+    page-level summaries. It is designed to be the main transport object between
+    the ingestion layer and downstream indexing or reasoning components.
+
+    Args:
+        full_text: Concatenated normalized text across all extracted sources.
+        chunks: Chunked text records prepared for downstream processing.
+        pages: Page-level extraction summaries including source entries.
+
+    Returns:
+        ExtractedPdf: Immutable extraction result container.
+    """
+
     full_text: str
     chunks: list[TextChunk]
     pages: list[dict[str, Any]]
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the extraction result to a serializable dictionary.
+
+        Args:
+            None.
+
+        Returns:
+            dict[str, Any]: Dictionary form containing full text, chunks, and
+            page summaries.
+        """
         return {
             "full_text": self.full_text,
             "chunks": [chunk.to_dict() for chunk in self.chunks],
@@ -44,6 +95,26 @@ def extract_pdf_to_text_chunks(
     chunk_overlap: int = 150,
     ocr_images: bool = True,
 ) -> ExtractedPdf:
+    """Extract native text and OCR text from a PDF, then chunk the result.
+
+    The function reads a PDF from bytes, extracts machine-readable page text,
+    optionally OCRs embedded page images, normalizes the result, and splits
+    extracted content into chunks sized for indexing and retrieval workloads.
+
+    Args:
+        pdf_bytes: Raw PDF content as bytes.
+        chunk_size: Maximum target size for each chunk in characters.
+        chunk_overlap: Character overlap to preserve context between chunks.
+        ocr_images: Whether embedded images should be OCR processed.
+
+    Returns:
+        ExtractedPdf: Full extraction result with concatenated text, chunks,
+        and page-level details.
+
+    Raises:
+        ValueError: If the PDF content is empty or chunking parameters are
+        invalid.
+    """
     if not pdf_bytes:
         raise ValueError("pdf_bytes must not be empty")
     if chunk_size <= 0:
@@ -72,6 +143,9 @@ def extract_pdf_to_text_chunks(
             )
 
             for entry in page_entries:
+                # Chunk each extraction source independently so downstream
+                # consumers can still distinguish between native PDF text and
+                # OCR-derived text.
                 chunks.extend(
                     _chunk_entry(
                         page_number=page_number,
@@ -90,6 +164,20 @@ def extract_pdf_to_text_chunks(
 
 
 def _extract_page_entries(page: fitz.Page, page_number: int, *, ocr_images: bool) -> list[dict[str, Any]]:
+    """Extract all text-bearing entries from a single PDF page.
+
+    A page can contribute multiple entries. Native PDF text is extracted first.
+    If OCR is enabled, embedded images are also processed and added as separate
+    entries with their own metadata.
+
+    Args:
+        page: PyMuPDF page object to inspect.
+        page_number: One-based page number used for metadata.
+        ocr_images: Whether embedded images should be OCR processed.
+
+    Returns:
+        list[dict[str, Any]]: Ordered extraction entries for the page.
+    """
     entries: list[dict[str, Any]] = []
 
     text = _normalize_text(page.get_text("text"))
@@ -108,6 +196,8 @@ def _extract_page_entries(page: fitz.Page, page_number: int, *, ocr_images: bool
     if not ocr_images:
         return entries
 
+    # Pages can reference the same underlying image multiple times. Tracking
+    # xrefs prevents duplicate OCR work and duplicate text in the output.
     seen_xrefs: set[int] = set()
     for image_index, image_info in enumerate(page.get_images(full=True), start=1):
         xref = image_info[0]
@@ -142,6 +232,18 @@ def _extract_page_entries(page: fitz.Page, page_number: int, *, ocr_images: bool
 
 
 def _extract_text_from_image_bytes(image_bytes: bytes) -> str:
+    """Run OCR against raw image bytes and normalize the result.
+
+    The preprocessing step intentionally stays lightweight: grayscale conversion
+    and autocontrast are usually enough to improve OCR quality without making
+    the extraction path brittle.
+
+    Args:
+        image_bytes: Raw bytes for one embedded image.
+
+    Returns:
+        str: Normalized OCR text. Empty string if OCR yields no useful text.
+    """
     with Image.open(io.BytesIO(image_bytes)) as image:
         grayscale = ImageOps.grayscale(image)
         normalized = ImageOps.autocontrast(grayscale)
@@ -158,6 +260,23 @@ def _chunk_entry(
     chunk_size: int,
     chunk_overlap: int,
 ) -> list[TextChunk]:
+    """Split one extracted text entry into retrieval-friendly chunks.
+
+    The function preserves paragraph boundaries when possible. If a paragraph is
+    too large for the configured chunk size, it falls back to word-based
+    splitting with overlap preservation.
+
+    Args:
+        page_number: Source page number.
+        source_type: Origin of the text such as native text or OCR.
+        text: Text to split into chunks.
+        metadata: Provenance metadata that should be copied to each chunk.
+        chunk_size: Maximum target size for each chunk.
+        chunk_overlap: Desired overlap between neighboring chunks.
+
+    Returns:
+        list[TextChunk]: Final chunk objects for the input entry.
+    """
     normalized_text = _normalize_text(text)
     if not normalized_text:
         return []
@@ -204,6 +323,20 @@ def _chunk_entry(
 
 
 def _split_long_text(text: str, *, chunk_size: int, chunk_overlap: int) -> list[str]:
+    """Split oversized text into word-preserving chunks.
+
+    This helper is used when a single paragraph exceeds the configured chunk
+    size. It attempts to keep words intact while still maintaining a small
+    overlap window between consecutive chunks.
+
+    Args:
+        text: Input text that is too large for a single chunk.
+        chunk_size: Maximum chunk size in characters.
+        chunk_overlap: Desired overlap size in characters.
+
+    Returns:
+        list[str]: Chunk strings before final object wrapping.
+    """
     words = text.split()
     if not words:
         return []
@@ -232,6 +365,18 @@ def _split_long_text(text: str, *, chunk_size: int, chunk_overlap: int) -> list[
 
 
 def _apply_overlap(chunks: list[str], *, chunk_overlap: int) -> list[str]:
+    """Apply character-based overlap between neighboring chunks.
+
+    The overlap is appended as a prefix from the previous chunk when that prefix
+    is not already present at the beginning of the current chunk.
+
+    Args:
+        chunks: Sequential chunk strings.
+        chunk_overlap: Number of trailing characters to reuse as context.
+
+    Returns:
+        list[str]: Chunk strings with overlap context applied.
+    """
     if not chunks or chunk_overlap == 0:
         return chunks
 
@@ -248,6 +393,15 @@ def _apply_overlap(chunks: list[str], *, chunk_overlap: int) -> list[str]:
 
 
 def _take_overlap_words(words: list[str], overlap_chars: int) -> list[str]:
+    """Select trailing words that best fit the requested overlap window.
+
+    Args:
+        words: Existing chunk words from which overlap should be taken.
+        overlap_chars: Target overlap size in characters.
+
+    Returns:
+        list[str]: Trailing words that should be repeated in the next chunk.
+    """
     if overlap_chars == 0:
         return []
 
@@ -265,6 +419,17 @@ def _take_overlap_words(words: list[str], overlap_chars: int) -> list[str]:
 
 
 def _normalize_text(text: str) -> str:
+    """Normalize extracted text for stable downstream processing.
+
+    The normalizer removes null characters, collapses repeated spaces, and
+    reduces excessive blank lines while preserving meaningful line structure.
+
+    Args:
+        text: Raw extracted text from a PDF or OCR pipeline.
+
+    Returns:
+        str: Cleaned text with normalized whitespace.
+    """
     text = text.replace("\x00", " ")
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
