@@ -1,15 +1,14 @@
 # Truthy
 
-Truthy is a documentation-first monorepo for an AI-assisted government application completeness verification platform.
-
-This repository is intentionally scaffolded without implementation code. The current goal is to lock the architecture, service boundaries, file layout, and local runtime topology before writing application logic.
+As an immigrant, when you first submit an application to the Canadian ministry of immigration (IRCC), it takes monnths, if not years, for that application to be reviewed for an initial "R10 Completeness Check" before entering the queue for processing. This is a laborious human-led and, hence, highly time-consuming process. Truthy is a Business-to-Government (B2G) AI-powered automation application that has aimed at reducing this process from months to seconds, hence leading to faster overall processing of IRCC applications.
 
 ## Services
 
 - `api`: Main FastAPI gateway and orchestration layer. This is the system entrypoint and calls the downstream `indexer` and `agentic-rag` services.
-- `streamlit`: Frontend for officers, analysts, and demo workflows.
+- `streamlit`: Internal dashboard frontend for officers, analysts, and demo workflows.
 - `indexer`: Policy ingestion and indexing service for program guides, checklists, form instructions, and rule updates.
 - `agentic-rag`: Retrieval and reasoning service that analyzes extracted application data against indexed policy knowledge.
+- `redis`: Fast cache system where a policy's modification date on exisiting regulations' database is frequently checked against the live version to determine if amendment to the database is required.
 
 ## Architecture Summary
 
@@ -71,10 +70,14 @@ The current program coverage includes:
 
 - `visitor`
   - 2 operational-guidelines pages
-  - 1 local checklist PDF
+  - 1 local document checklist PDF
 - `study permit`
   - 1 operational-guidelines page for study permit application assessment
-  - 1 local checklist PDF at [IMM5483.pdf](/Users/abtinzandi/Desktop/Truthy/services/data/forms/IMM5483.pdf)
+  - 1 local document checklist PDF
+
+## What's Next?
+
+Currently, Truthy is enabled to perform the "R10 Completeness Check" on only two IRCC programs, Temporary Resident Visas and Study Permits (from outside Canada). Following the current implementation, our team aims to expand to the 350+ distinct programs existing within the Canadian immigration system. Furthermore, we wish to increase our AI model's accuracy in scavenging the content of files and read through different file types (word, jpg, png, etc.). In tandem, we will also attempt to enhance our model's reasoning capabilities.
 
 ## Local Run Instructions
 
