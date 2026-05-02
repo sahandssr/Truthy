@@ -42,7 +42,7 @@ The repository includes a `docker-compose.yml` file with the following services:
 - `indexer`
 - `agentic-rag`
 - `redis`
-- `qdrant`
+- `Pinecone`
 
 `redis` and `qdrant` are included as foundational infrastructure for caching and retrieval-oriented indexing.
 
